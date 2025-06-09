@@ -3,9 +3,12 @@ const qrcode = require('qrcode')
 const { Boom } = require('@hapi/boom')
 const FileHelper = require('../helper/fileHelper')
 const whatsappServices = require('../services/WhatsappServices')
+const WhatsappSessionService = require('../services/WhatsappSessionService')
+const openRouterClient = require('../providers/openRouterClient')
 
 const patchSession = "storage/auth";
-async function connectToWhatsApp(sessionName, res = null,reconect = false, act = null) {
+async function connectToWhatsApp(sessionName, res, reconect, callback, runtime) {
+    console.log(runtime);
     const { state, saveCreds } = await useMultiFileAuthState(`./${patchSession}/${sessionName}`) // Crie uma pasta para cada sessão
     const sock = makeWASocket({
         auth: state,
@@ -45,24 +48,53 @@ async function connectToWhatsApp(sessionName, res = null,reconect = false, act =
         }
 
         if (connection === 'open') {
-            let configAtualizar = await FileHelper.readJson(`${patchSession}/${sessionName}/config.json`);
-            configAtualizar.last_connection = new Date();
+
+             if(runtime){
+                    console.log('\n\n\n📩 Runtime Ativado\n\n\n');
+                    
+                sock.ev.on('messages.upsert', async (msgUpdate) => {
+                    
+                    let resp = await whatsappServices.formatMessage(msgUpdate);
+
+                    let updtateMessages = await WhatsappSessionService.updateMessages(sessionName,resp);
+                    if(resp.acao != "enviado"){
+                        let response = await openRouterClient.startChat(updtateMessages);
+
+                            if(isValidJSON(response.data.choices[0].message.content)){
+                                const data = JSON.parse(response.data.choices[0].message.content);
+                                console.log(data);
+                                whatsappServices.runTimesendMessage(sock,`PEDIDO CONFIRMADO || COD: 855486\nValor Total: ${data.valor_total}\npara acompanhar seu pedido acesse:\nhttps://openrouter.ai/`,resp.chat_id);
+                            }else{
+                                whatsappServices.runTimesendMessage(sock,response.data.choices[0].message.content,resp.chat_id);
+                            }
+                            
+                    }
+                    
+                });
+                return res.status(200).json({
+                        status: true,
+                        message: 'Sessão iniciada: '+sessionName
+                });
+            }
+            
             if(reconect){
-                act(sock);
+                callback(sock);
+                WhatsappSessionService.updateLastAccess(sessionName)
             }else{
                 // Atualizar config Session
-            configAtualizar.connected = true;
+
             }
-            FileHelper.createFile(`${patchSession}/${sessionName}/config.json`, JSON.stringify(configAtualizar, null, 2));
 
             
-            setTimeout(() => {
-                    console.log(`⏳ Encerrando sessão ${sessionName} após 30 segundos. \n\n\n\n\n\n\n\n\n\n`);
-                    sock.ev.removeAllListeners('connection.update')
-            }, 30 * 1000); 
+            // setTimeout(() => {
+            //         console.log(`⏳ Encerrando sessão ${sessionName} após 30 segundos. \n\n\n\n\n\n\n\n\n\n`);
+            //         sock.ev.removeAllListeners('connection.update')
+            // }, 30 * 1000); 
         }
 
         if (connection === 'close') {
+
+           
             
             const reason = new Boom(lastDisconnect?.error)?.output?.statusCode
             const shouldReconnect = reason !== DisconnectReason.loggedOut
@@ -100,14 +132,24 @@ async function connectToWhatsApp(sessionName, res = null,reconect = false, act =
     return sock
 }
 
+ function isValidJSON(str) {
+  try {
+    const parsed = JSON.parse(str);
+    return typeof parsed === 'object' && parsed !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
 
 async function defaultConfig(session_id) {
     let config = {
         created_at: new Date(),
         last_connection: null,
-        connected : false,
+        start_connected : false,
         session_id: session_id,
         groups: [],
+        messages:[]
     }
 
     return config;
@@ -119,11 +161,17 @@ module.exports = {
         const sessionName = req.query.sessionName || req.body.sessionName 
         let sock = await connectToWhatsApp(sessionName, res, true, async (sock) =>{
             func(req,res,sock)
-        });
+        },false);
+    },
+
+    async getQrCodeRuntime(req, res) {
+        const sessionName = req.query.sessionName || req.body.sessionName 
+        let sock = await connectToWhatsApp(sessionName, res, false, async (sock) =>{
+        },true);
     },
 
     getQrCode(req, res) {
-        const sessionName = req.query.sessionName || 'default' // Cada sessão tem um nome único
-        connectToWhatsApp(sessionName, res)
+        const sessionName = req.query.sessionName || 'default'; // Cada sessão tem um nome único
+        connectToWhatsApp(sessionName, res, false, () => {}, false);
     }
 }

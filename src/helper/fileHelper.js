@@ -17,11 +17,20 @@ async function readFile(filePath) {
 }
 
 /**
- * deleta uma pasta
+ * deleta uma pasta ou arquivo
  */
 async function deleteFile(filePath) {
   const fullPath = resolvePath(filePath);
   return await fs.rm(fullPath, { recursive: true, force: true });
+}
+
+
+/**
+ * deleta uma pasta ou arquivo
+ */
+async function existsFile(filePath) {
+  const fullPath = resolvePath(filePath);
+  return fs.existsSync(fullPath);
 }
 
 
@@ -88,5 +97,6 @@ module.exports = {
   updateJson,
   fileExists,
   createFile,
-  deleteFile
+  deleteFile,
+  existsFile,
 };

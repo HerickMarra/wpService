@@ -60,7 +60,6 @@ Thumbs.db
 
 # Gatsby files
 .cache/
-public/
 storage/auth
 
 # SvelteKit
