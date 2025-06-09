@@ -26,6 +26,14 @@ module.exports = {
         });
     },
 
+    async getPedido(req, res) {
+        whatsappClient.getPedido(req, res)
+    },
+
+    async savePedido(req, res) {
+        whatsappClient.savePedido(req, res)
+    },
+
     async sendMessageCaixa(req, res) {
         whatsappClient.runWithSocket(req,res,(req, res, sock) => {
             whatsappServices.primeiraMensagem(req, res, sock);

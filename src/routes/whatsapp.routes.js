@@ -3,6 +3,8 @@ const router = express.Router()
 const WhatsappController = require('../controllers/WhatsappController')
 
 router.get('/qrcode', WhatsappController.getQrCode)
+router.get('/getPedido', WhatsappController.getPedido)
+router.get('/savePedido', WhatsappController.savePedido)
 router.get('/qrcode/runtime', WhatsappController.getQrCodeRuntime)
 
 

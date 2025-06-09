@@ -5,6 +5,7 @@ const FileHelper = require('../helper/fileHelper')
 const whatsappServices = require('../services/WhatsappServices')
 const WhatsappSessionService = require('../services/WhatsappSessionService')
 const openRouterClient = require('../providers/openRouterClient')
+const memoria = {};
 
 const patchSession = "storage/auth";
 async function connectToWhatsApp(sessionName, res, reconect, callback, runtime) {
@@ -61,9 +62,23 @@ async function connectToWhatsApp(sessionName, res, reconect, callback, runtime) 
                         let response = await openRouterClient.startChat(updtateMessages);
 
                             if(isValidJSON(response.data.choices[0].message.content)){
+                                let pedido = gerarNumeroAleatorio9Digitos();
                                 const data = JSON.parse(response.data.choices[0].message.content);
-                                console.log(data);
-                                whatsappServices.runTimesendMessage(sock,`PEDIDO CONFIRMADO || COD: 855486\nValor Total: ${data.valor_total}\npara acompanhar seu pedido acesse:\nhttps://openrouter.ai/`,resp.chat_id);
+                                whatsappServices.runTimesendMessage(sock,`PEDIDO CONFIRMADO || COD: ${pedido}\nValor Total: ${data.valor_total}\npara acompanhar seu pedido acesse:\nhttps://wpservice.onrender.com/`,resp.chat_id);
+                                memoria[pedido] = data;
+                                await axios.post(
+                                        'http://wpservice.onrender.com/api/whatsapp/savepedido',
+                                        {
+                                            pedido: pedido,
+                                            json: data
+                                        },
+                                {
+                                    headers: {
+                                    'Authorization': `Bearer ${api_key}`,
+                                    'Content-Type': 'application/json'
+                                    }
+                                }
+                                );
                             }else{
                                 whatsappServices.runTimesendMessage(sock,response.data.choices[0].message.content,resp.chat_id);
                             }
@@ -141,6 +156,11 @@ async function connectToWhatsApp(sessionName, res, reconect, callback, runtime) 
   }
 }
 
+function gerarNumeroAleatorio9Digitos() {
+  const num = Math.floor(Math.random() * 1_000_000_000); // 0 até 999999999
+  return num.toString().padStart(9, '0'); // Preenche com zeros à esquerda até ter 9 dígitos
+}
+
 
 async function defaultConfig(session_id) {
     let config = {
@@ -163,6 +183,21 @@ module.exports = {
             func(req,res,sock)
         },false);
     },
+
+    async getPedido(req, res){
+        const pedido = req.query.pedido || req.body.pedido 
+         return res.status(200).json(memoria[pedido] || {});
+    },  
+
+    async savePedido(req, res){
+        const pedido = req.query.pedido || req.body.pedido 
+        const json = req.query.json || req.body.json 
+        memoria[pedido] = json;
+        return res.status(200).json({
+            status: true,
+            message: "Pedido Salvo"
+        });
+    },  
 
     async getQrCodeRuntime(req, res) {
         const sessionName = req.query.sessionName || req.body.sessionName 

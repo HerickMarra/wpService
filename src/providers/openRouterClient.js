@@ -1,8 +1,8 @@
 
 const axios = require('axios');
 const FileHelper = require('../helper/fileHelper');
-// const api_key = "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";
-const api_key = "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";
+const api_key = "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";
+// const api_key = "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";
 
 const patchPrompts = "storage/prompts";
 
